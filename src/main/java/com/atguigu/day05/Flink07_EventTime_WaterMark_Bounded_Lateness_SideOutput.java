@@ -5,25 +5,23 @@ import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.tuple.Tuple;
-import org.apache.flink.streaming.api.datastream.DataStreamSource;
-import org.apache.flink.streaming.api.datastream.KeyedStream;
-import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.streaming.api.datastream.WindowedStream;
+import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.OutputTag;
 
 import java.time.Duration;
 
-public class Flink02_EventTime_WaterMark_Bounded {
+public class Flink07_EventTime_WaterMark_Bounded_Lateness_SideOutput {
     public static void main(String[] args) throws Exception {
         //1.获取流的执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        env.setParallelism(2);
+        env.setParallelism(1);
 
         //2.从端口读取数据
         DataStreamSource<String> streamSource = env.socketTextStream("localhost", 9999);
@@ -49,24 +47,38 @@ public class Flink02_EventTime_WaterMark_Bounded {
                                 return element.getTs() * 1000;
                             }
                         })
-        ).setParallelism(1);
+        );
 
         //将相同key的数据聚和到一块
         KeyedStream<WaterSensor, Tuple> keyedStream = waterSensorSingleOutputStreamOperator.keyBy("id");
 
-        //TODO 开启一个基于事件时间的滚动窗口
-        WindowedStream<WaterSensor, Tuple, TimeWindow> window = keyedStream.window(TumblingEventTimeWindows.of(Time.seconds(5)));
+        OutputTag<WaterSensor> outputTag = new OutputTag<WaterSensor>("late") {};
 
-        window.process(new ProcessWindowFunction<WaterSensor, String, Tuple, TimeWindow>() {
-                           @Override
-                           public void process(Tuple key, Context context, Iterable<WaterSensor> elements, Collector<String> out) throws Exception {
-                               String msg = "当前key: " + key
-                                       + "窗口: [" + context.window().getStart() / 1000 + "," + context.window().getEnd() / 1000 + ") 一共有 "
-                                       + elements.spliterator().estimateSize() + "条数据 ";
-                               out.collect(msg);
-                           }
-                       }
-        ).print();
+        //TODO 开启一个基于事件时间的滚动窗口
+        WindowedStream<WaterSensor, Tuple, TimeWindow> window = keyedStream.window(TumblingEventTimeWindows.of(Time.seconds(5)))
+                //TODO 设置允许迟到的时间为3S
+                .allowedLateness(Time.seconds(3))
+                //TODO  将迟到的数据放入侧输出流中
+//                .sideOutputLateData(new OutputTag<WaterSensor>("late") {})
+                .sideOutputLateData(outputTag)
+                ;
+
+        SingleOutputStreamOperator<String> process = window.process(new ProcessWindowFunction<WaterSensor, String, Tuple, TimeWindow>() {
+                                                                        @Override
+                                                                        public void process(Tuple key, Context context, Iterable<WaterSensor> elements, Collector<String> out) throws Exception {
+                                                                            String msg = "当前key: " + key
+                                                                                    + "窗口: [" + context.window().getStart() / 1000 + "," + context.window().getEnd() / 1000 + ") 一共有 "
+                                                                                    + elements.spliterator().estimateSize() + "条数据 ";
+                                                                            out.collect(msg);
+                                                                        }
+                                                                    }
+        );
+
+        process.print("主流");
+        //TODO 打印侧输出流的数据
+//        process.getSideOutput(new OutputTag<WaterSensor>("late") {})
+        process.getSideOutput(outputTag).print("迟到的数据（侧输出）");
+
 
         env.execute();
 

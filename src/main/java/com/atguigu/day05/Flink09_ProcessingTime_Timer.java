@@ -40,7 +40,7 @@ public class Flink09_ProcessingTime_Timer {
             public void processElement(WaterSensor value, Context ctx, Collector<WaterSensor> out) throws Exception {
                 //TODO 注册一个基于处理时间的定时器
 //                System.out.println("注册定时器"+ctx.timerService().currentProcessingTime()/1000);
-                ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime()+200);
+                ctx.timerService().registerProcessingTimeTimer(5000);
 //                out.collect(value);
 
             }
@@ -57,7 +57,7 @@ public class Flink09_ProcessingTime_Timer {
 //                System.out.println("5S已过，定时器触发"+ctx.timerService().currentProcessingTime()/1000);
 //                out.collect(new WaterSensor("555",5L,5));
                 System.out.println("生成WaterMark"+ctx.timerService().currentProcessingTime());
-                ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime()+200);
+//                ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime()+200);
             }
         });
 

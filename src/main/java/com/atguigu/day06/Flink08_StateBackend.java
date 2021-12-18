@@ -36,6 +36,7 @@ public class Flink08_StateBackend {
         env.getCheckpointConfig().setCheckpointStorage(new JobManagerCheckpointStorage());
 
 
+
         //TODO 文件级别的
         //老版本写法
         env.setStateBackend(new FsStateBackend("hdfs://hadoop102:8020/....."));

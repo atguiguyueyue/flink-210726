@@ -2,6 +2,7 @@ package com.atguigu.day09;
 
 import com.atguigu.bean.WaterSensor;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.java.tuple.Tuple1;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.annotation.DataTypeHint;
@@ -39,27 +40,27 @@ public class Flink04_UDF_TableFun {
         Table table = tableEnv.fromDataStream(waterSensorStream);
 
         //不注册直接使用
-//        table
-//             .joinLateral(call(MyUDTF.class,$("id")).as("newWord"))
-//                .select($("id"),$("newWord")).execute().print();
+        table
+             .joinLateral(call(MyUDTF.class,$("id")))
+                .select($("id"),$("f0")).execute().print();
         //先注册再使用
-        tableEnv.createTemporarySystemFunction("myExplor", MyUDTF.class);
+//        tableEnv.createTemporarySystemFunction("myExplor", MyUDTF.class);
 //
 //        table
 //             .joinLateral(call("myExplor",$("id")).as("newWord"))
 //                .select($("id"),$("newWord")).execute().print();
 
 //        tableEnv.executeSql("select id,word from "+table+" join lateral table(myExplor(id)) on true").print();
-        tableEnv.executeSql("select id,word from "+table+",lateral table(myExplor(id))").print();
+//        tableEnv.executeSql("select id,word from "+table+",lateral table(myExplor(id))").print();
     }
 
     //自定义一个表函数，一进多出，根据id按照下划线切分出多个数据
-    @FunctionHint(output = @DataTypeHint("ROW<word STRING>"))
-    public static class MyUDTF extends TableFunction<Row>{
+//    @FunctionHint(output = @DataTypeHint("ROW<word STRING>"))
+    public static class MyUDTF extends TableFunction<Tuple1<String>>{
         public void eval(String value){
             String[] split = value.split("_");
             for (String s : split) {
-                collect(Row.of(s));
+                collect(Tuple1.of(s));
             }
         }
     }
